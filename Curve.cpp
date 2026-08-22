@@ -422,6 +422,165 @@ void CCurve::FitArcs(bool retry)
             new_vertices.push_back(*v);
         m_vertices.swap(new_vertices);
 	}
+
+	// Half a turn is as much as the fit itself will say at once, so putting
+	// the halves back together is a pass of its own.
+	if(CArea::m_fit_circles)
+	    FitCircles();
+}
+
+// The sweep of the arc that ends at vt, having started at p: how far round its
+// centre it turns, always in [0, 2*PI]. An arc whose end point is its start
+// point is the whole circle, which is the one sweep the two angles cannot tell
+// apart from no sweep at all.
+static double ArcSweep(const Point& p, const CVertex& vt)
+{
+	if(vt.m_p == p)
+	    return 6.2831853071795864;
+
+	const double angs = atan2(p.y - vt.m_c.y, p.x - vt.m_c.x);
+	const double ange = atan2(vt.m_p.y - vt.m_c.y, vt.m_p.x - vt.m_c.x);
+	double sweep = (vt.m_type > 0) ? (ange - angs) : (angs - ange);
+	if(sweep < 0.0)
+	    sweep += 6.2831853071795864;
+	return sweep;
+}
+
+static bool OnSameCircle(const Point& c0, double r0, const Point& c1, double r1, double tol)
+{
+	// Two arcs fitted separately are on one circle if their centres and radii
+	// agree to within tol. Every point of either arc is then within tol of the
+	// other's circle, which is what lets one stand for both.
+	return c0.dist(c1) <= tol && fabs(r0 - r1) <= tol;
+}
+
+void CCurve::FitCircles()
+{
+	// FitArcs never emits an arc of more than about half a turn, because the
+	// circle it fits is found from three of the points and it wants the middle
+	// one to say which way round. So a circle comes back as two arcs, an arc
+	// of 200 degrees comes back as two arcs, and everything downstream pays
+	// for the extra edge. This puts them back together: a run of arcs that all
+	// lie on one circle becomes one arc, and a closed curve that is nothing
+	// but one circle becomes one vertex whose end point is its own start
+	// point.
+	//
+	// No point moves. The joined arc keeps the first arc's circle, and every
+	// other arc of the run was required to be within tol of it -- the same
+	// band the fit allowed the points inside each arc -- so nothing leaves the
+	// tolerance the fit was asked for.
+	if(m_vertices.size() < 3)
+	    return;
+
+	const double tol = CArea::m_accuracy * 2.3 / CArea::m_units;
+	const double full_turn = 6.2831853071795864;
+	// A joined arc has to stop well short of coming back to where it started,
+	// because an arc that nearly closes is a shape this representation cannot
+	// say: start point, end point and centre put the two ends at the same
+	// angle, and the included angle is then read as no turn at all rather than
+	// as very nearly a whole one (IncludedAngle calls a dot product of
+	// 1 - 1e-10, about 1.4e-5 radians, no angle). The only whole circle worth
+	// having is the exact one below, where a closed curve is nothing but a
+	// circle and its two ends are the same point by construction. This margin
+	// is 70 times the angle at which the reading goes wrong.
+	const double gap_min = 1.0e-3;
+
+	std::vector<CVertex> v(m_vertices.begin(), m_vertices.end());
+
+	if(IsClosed())
+	{
+		// Is the whole curve one circle? Then the seam is the only thing
+		// dividing it, and the seam is not geometry.
+		bool one_circle = v[1].m_type != 0;
+		const Point c = v[1].m_c;
+		const double r = v[0].m_p.dist(c);
+		for(std::size_t i = 2; one_circle && i < v.size(); i++)
+		{
+			one_circle = v[i].m_type == v[1].m_type
+			          && OnSameCircle(c, r, v[i].m_c, v[i-1].m_p.dist(v[i].m_c), tol);
+		}
+
+		if(one_circle)
+		{
+			CVertex start = v[0];
+			CVertex whole(v[1].m_type, v[0].m_p, c, v.back().m_user_data);
+			m_vertices.clear();
+			m_vertices.push_back(start);
+			m_vertices.push_back(whole);
+			return;
+		}
+
+		// Otherwise the seam may still sit in the middle of a run of arcs, so
+		// walk it forward until it lands where the run genuinely ends. Each
+		// turn moves the first span to the end, which a closed curve is free
+		// to do; it cannot loop, because the case where every span is on one
+		// circle was answered above.
+		for(std::size_t turns = 0; turns + 1 < v.size(); turns++)
+		{
+			const CVertex& first = v[1];
+			const CVertex& last = v.back();
+			if(first.m_type == 0 || last.m_type != first.m_type)
+			    break;
+			const double rf = v[0].m_p.dist(first.m_c);
+			const double rl = v[v.size()-2].m_p.dist(last.m_c);
+			if(!OnSameCircle(first.m_c, rf, last.m_c, rl, tol))
+			    break;
+			if(ArcSweep(v[0].m_p, first) + ArcSweep(v[v.size()-2].m_p, last) > full_turn - gap_min)
+			    break;
+
+			std::vector<CVertex> rotated;
+			rotated.reserve(v.size());
+			rotated.push_back(CVertex(v[1].m_p, v[1].m_user_data));
+			for(std::size_t i = 2; i < v.size(); i++)
+			    rotated.push_back(v[i]);
+			rotated.push_back(v[1]);
+			v.swap(rotated);
+		}
+	}
+
+	std::list<CVertex> new_vertices;
+	new_vertices.push_back(v[0]);
+
+	std::size_t i = 1;
+	while(i < v.size())
+	{
+		const CVertex& vt = v[i];
+		if(vt.m_type == 0)
+		{
+			new_vertices.push_back(vt);
+			i++;
+			continue;
+		}
+
+		const Point start = v[i-1].m_p;
+		const double r = start.dist(vt.m_c);
+		double sweep = ArcSweep(start, vt);
+
+		std::size_t last = i;
+		while(last + 1 < v.size())
+		{
+			const CVertex& next = v[last+1];
+			if(next.m_type != vt.m_type)
+			    break;
+			if(!OnSameCircle(vt.m_c, r, next.m_c, v[last].m_p.dist(next.m_c), tol))
+			    break;
+			const double next_sweep = ArcSweep(v[last].m_p, next);
+			if(sweep + next_sweep > full_turn - gap_min)
+			    break;
+			if(next.m_p == start)
+			    break;
+			sweep += next_sweep;
+			last++;
+		}
+
+		if(last > i)
+		    new_vertices.push_back(CVertex(vt.m_type, v[last].m_p, vt.m_c, v[last].m_user_data));
+		else
+		    new_vertices.push_back(vt);
+		i = last + 1;
+	}
+
+	m_vertices.swap(new_vertices);
 }
 
 void CCurve::UnFitArcs()
@@ -438,7 +597,9 @@ void CCurve::UnFitArcs()
 		}
 		else
 		{
-			if(vertex.m_p != prev_vertex->m_p)
+			// an arc that ends where it began is the whole circle where
+			// whole circles are allowed, and nothing anywhere else
+			if(vertex.m_p != prev_vertex->m_p || CArea::m_fit_circles)
 			{
 				double phi,dphi,dx,dy;
 				int Segments;
@@ -468,6 +629,13 @@ void CCurve::UnFitArcs()
 						phit=-(2.0*PI-ang1+ ang2);
 					else
 						phit=-(ang2-ang1);
+				}
+
+				if (vertex.m_p == prev_vertex->m_p)
+				{
+					// the whole circle: two angles that are the same say a turn
+					// of nothing, and this is the other thing they can mean
+					phit = (vertex.m_type == -1) ? 2.0*PI : -2.0*PI;
 				}
 
 				//what is the delta phi to get an accuracy of aber
@@ -1318,6 +1486,15 @@ void Span::GetBox(CBox2D &box)
 
 	if(this->m_v.m_type)
 	{
+		if(CArea::m_fit_circles && m_v.m_p == m_p)
+		{
+			// the whole circle, so every quadrant point is on it
+			const double rad = m_p.dist(m_v.m_c);
+			for(int i = 0; i < 4; i++)
+			    box.Insert(m_v.m_c + QuadrantEndPoint(i) * rad);
+			return;
+		}
+
 		// arc, add quadrant points
 		Point vs = m_p - m_v.m_c;
 		Point ve = m_v.m_p - m_v.m_c;
@@ -1362,6 +1539,13 @@ double Span::IncludedAngle()const
 {
 	if(m_v.m_type)
 	{
+		// An arc that ends where it started is the whole circle. Only
+		// FitCircles says that, so only ask when it is allowed to: elsewhere
+		// two coincident points mean an arc that turns through nothing, which
+		// is what the vectors below would say anyway.
+		if(CArea::m_fit_circles && m_v.m_p == m_p)
+		    return m_v.m_type * 6.2831853071795864;
+
 		Point vs = ~(m_p - m_v.m_c);
 		Point ve = ~(m_v.m_p - m_v.m_c);
 		if(m_v.m_type == -1)

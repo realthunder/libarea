@@ -109,6 +109,15 @@ public:
 	void append(const CVertex& vertex);
 
 	void FitArcs(bool retry=false);
+	// Join a run of arcs that lie on one circle back into a single arc, which
+	// the fit itself will not do because it never looks past half a turn. A
+	// closed curve that is nothing but one circle comes back as one arc vertex
+	// whose end point is its own start point: the whole circle. Nothing else
+	// in libarea says a circle that way, so it is only ever produced when
+	// CArea::m_fit_circles is on, and the code that reads a curve back --
+	// UnFitArcs, the walk onto the Clipper lattice, Span -- asks that same
+	// flag before reading a vertex as a whole circle rather than as nothing.
+	void FitCircles();
 	void UnFitArcs();
 	Point NearestPoint(const Point& p)const;
 	Point NearestPoint(const CCurve& p, double *d = NULL)const;

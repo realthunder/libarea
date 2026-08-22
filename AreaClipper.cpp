@@ -48,7 +48,12 @@ static void AddVertex(const CVertex& vertex, const CVertex* prev_vertex)
 	}
 	else
 	{
-		if(vertex.m_p != prev_vertex->m_p)
+		// An arc that ends where it began is the whole circle, which only
+		// FitCircles produces and only when it is allowed to. Everywhere
+		// else two coincident points mean a corner that does not turn --
+		// MakeLoop makes one at every straight-through vertex -- and a
+		// circle there would be a blob the shape never had.
+		if(vertex.m_p != prev_vertex->m_p || CArea::m_fit_circles)
 		{
 		double phi,dphi,dx,dy;
 		int Segments;
@@ -78,6 +83,13 @@ static void AddVertex(const CVertex& vertex, const CVertex* prev_vertex)
 				phit=-(2.0*PI-ang1+ ang2);
 			else
 				phit=-(ang2-ang1);
+		}
+
+		if (vertex.m_p == prev_vertex->m_p)
+		{
+			// the whole circle: two angles that are the same say a turn of
+			// nothing, and this is the other thing they can mean
+			phit = (vertex.m_type == -1) ? 2.0*PI : -2.0*PI;
 		}
 
 		//what is the delta phi to get an accuracy of aber
@@ -139,7 +151,10 @@ static void MakeLoop(const DoubleAreaPoint &pt0, const DoubleAreaPoint &pt1, con
 	double save_units = CArea::m_units;
 	CArea::m_units = 1.0;
 
-	AddVertex(v1, &v0);
+	// A corner that does not turn has no loop to round, and with whole
+	// circles readable it would be read as one.
+	if(!(v1.m_p == v0.m_p))
+		AddVertex(v1, &v0);
 	AddVertex(v2, &v1);
 
 	CArea::m_units = save_units;

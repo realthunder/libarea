@@ -47,6 +47,14 @@ public:
 	static bool m_clipper_simple;
 	static double m_clipper_clean_distance;
 	static bool m_fit_arcs;
+	// Off, the arc fit stops at half a circle, so a circle comes back as two
+	// arcs and an arc of more than 180 degrees comes back as two as well, and
+	// nothing ever puts them together again. On, a run of fitted arcs that
+	// share one circle is joined back into a single arc, and a closed curve
+	// that is nothing but one circle becomes a single arc vertex whose end
+	// point is its own start point -- a whole circle. Off by default because
+	// that last vertex is a shape older readers of a CCurve do not expect.
+	static bool m_fit_circles;
     static int m_min_arc_points;
     static int m_max_arc_points;
 	static double m_processing_done; // 0.0 to 100.0, set inside MakeOnePocketCurve
@@ -107,6 +115,7 @@ public:
 
     CAREA_PARAM_DECLARE(double,tolerance)
     CAREA_PARAM_DECLARE(bool,fit_arcs)
+    CAREA_PARAM_DECLARE(bool,fit_circles)
     CAREA_PARAM_DECLARE(bool,clipper_simple)
     CAREA_PARAM_DECLARE(double,clipper_clean_distance)
     CAREA_PARAM_DECLARE(double,accuracy)

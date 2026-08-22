@@ -13,6 +13,7 @@ double CArea::m_units = 1.0;
 bool CArea::m_clipper_simple = false;
 double CArea::m_clipper_clean_distance = 0.0;
 bool CArea::m_fit_arcs = true;
+bool CArea::m_fit_circles = false;
 int CArea::m_min_arc_points = 4;
 int CArea::m_max_arc_points = 100;
 double CArea::m_single_area_processing_length = 0.0;
@@ -34,6 +35,7 @@ double CArea::m_after_MakeOffsets_length = 0.0;
 
 _CAREA_PARAM_DEFINE(Point,double,tolerance)
 CAREA_PARAM_DEFINE(bool,fit_arcs)
+CAREA_PARAM_DEFINE(bool,fit_circles)
 CAREA_PARAM_DEFINE(bool,clipper_simple)
 CAREA_PARAM_DEFINE(double,clipper_clean_distance)
 CAREA_PARAM_DEFINE(double,accuracy)
