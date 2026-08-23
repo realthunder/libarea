@@ -7,7 +7,7 @@
 #define AREA_HEADER
 
 #include "Curve.h"
-#include "clipper.hpp"
+#include "clipper2/clipper.h"
 
 enum PocketMode
 {
@@ -76,20 +76,19 @@ public:
 	// instead, so it keeps that overlap, at the price of every contour having
 	// to be wound to say which side is solid.
 	void Subtract(const CArea& a2,
-	              ClipperLib::PolyFillType subject_fill = ClipperLib::pftEvenOdd,
-	              ClipperLib::PolyFillType clip_fill = ClipperLib::pftEvenOdd);
+	              Clipper2Lib::FillRule subject_fill = Clipper2Lib::FillRule::EvenOdd,
+	              Clipper2Lib::FillRule clip_fill = Clipper2Lib::FillRule::EvenOdd);
 	void Intersect(const CArea& a2);
 	void Union(const CArea& a2,
-	           ClipperLib::PolyFillType subject_fill = ClipperLib::pftEvenOdd,
-	           ClipperLib::PolyFillType clip_fill = ClipperLib::pftEvenOdd);
-	static CArea UniteCurves(std::list<CCurve> &curves);
+	           Clipper2Lib::FillRule subject_fill = Clipper2Lib::FillRule::EvenOdd,
+	           Clipper2Lib::FillRule clip_fill = Clipper2Lib::FillRule::EvenOdd);
 	void Xor(const CArea& a2);
 	void Offset(double inwards_value);
-    void OffsetWithClipper(double offset, 
-                            ClipperLib::JoinType joinType=ClipperLib::jtRound, 
-                            ClipperLib::EndType endType=ClipperLib::etOpenRound,
-                            double miterLimit = 5.0, 
-                            double roundPrecision = 0.0);
+    void OffsetWithClipper(double offset,
+                            Clipper2Lib::JoinType joinType = Clipper2Lib::JoinType::Round,
+                            Clipper2Lib::EndType endType = Clipper2Lib::EndType::Round,
+                            double miterLimit = 5.0,
+                            double arcTolerance = 0.0);
 	void Thicken(double value);
 	void FitArcs();
 	unsigned int num_curves(){return static_cast<int>(m_curves.size());}
@@ -125,11 +124,11 @@ public:
     CAREA_PARAM_DECLARE(double,clipper_scale)
 
     // Following functions is add to operate on possible open curves
-	void PopulateClipper(ClipperLib::Clipper &c, ClipperLib::PolyType type) const;
-	void Clip(ClipperLib::ClipType op, 
-              const CArea *a,
-              ClipperLib::PolyFillType subjFillType = ClipperLib::pftEvenOdd,
-              ClipperLib::PolyFillType clipFillType = ClipperLib::pftEvenOdd);
+	void PopulateClipper(Clipper2Lib::Clipper64 &c, bool as_clip) const;
+	void Clip(Clipper2Lib::ClipType op,
+              const CArea &clip_area,
+              Clipper2Lib::FillRule subjFillType = Clipper2Lib::FillRule::EvenOdd,
+              Clipper2Lib::FillRule clipFillType = Clipper2Lib::FillRule::EvenOdd);
 };
 
 enum eOverlapType
@@ -146,8 +145,8 @@ enum eOverlapType
 // which does not say which of them lies inside which: a caller that needs the
 // nesting can run Clipper itself for a PolyTree, which carries it, and still
 // have arcs survive the crossing.
-void CurveToClipperPath(const CCurve& curve, ClipperLib::Path& path, bool reverse = true);
-void CurveFromClipperPath(CCurve& curve, ClipperLib::Path& path, bool reverse = true, bool is_closed = true);
+void CurveToClipperPath(const CCurve& curve, Clipper2Lib::Path64& path, bool reverse = true);
+void CurveFromClipperPath(CCurve& curve, Clipper2Lib::Path64& path, bool reverse = true, bool is_closed = true);
 
 eOverlapType GetOverlapType(const CCurve& c1, const CCurve& c2);
 eOverlapType GetOverlapType(const CArea& a1, const CArea& a2);
