@@ -139,3 +139,12 @@ install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/libareaConfigVersion.cmake"
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/libarea
 )
+
+# Tests. Off by default so a packaging build does not pay for them; the
+# feedstock's own consumer check is separate and lighter.
+include(CTest)
+if(BUILD_TESTING)
+    add_executable(area_ops_test tests/area_ops.cpp)
+    target_link_libraries(area_ops_test PRIVATE area)
+    add_test(NAME area_ops COMMAND area_ops_test)
+endif()
