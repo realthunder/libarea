@@ -41,7 +41,12 @@
 //#define use_int32
 
 //use_xyz: adds a Z member to IntPoint. Adds a minor cost to performance.
-//#define use_xyz
+//FreeCAD's Adaptive.cpp carries an index on Z through the clipping, so
+//this is on. It changes the layout of IntPoint, and consumers see it
+//because they read it from this header -- see USINGZ in CMakeLists.txt
+//for the same switch on the Clipper2 side, which does not have a header
+//to carry it.
+#define use_xyz
 
 //use_lines: Enables line clipping. Adds a very minor cost to performance.
 #define use_lines

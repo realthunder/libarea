@@ -25,7 +25,7 @@
 #                    those as well as CArea.
 
 cmake_minimum_required(VERSION 3.16)
-project(libarea VERSION 0.2.0 LANGUAGES CXX)
+project(libarea VERSION 0.3.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -56,18 +56,27 @@ add_library(area
 )
 add_library(libarea::area ALIAS area)
 
-# Clipper2 is deliberately built without USINGZ. Neither CArea nor any
-# consumer here carries data on the Z member, and USINGZ changes the layout
-# of Point64 -- so if it is ever turned on it has to be a PUBLIC compile
-# definition on this target, or a consumer compiled without it would disagree
-# with the library about the ABI.
+# Clipper2 is built with USINGZ, because FreeCAD's Adaptive.cpp carries an
+# index on the Z member through the clipping and reads it back off the points
+# the clip returns. That changes the layout of Point64, so the definition is
+# PUBLIC: a consumer compiled without it would disagree with the library about
+# the ABI. Clipper1 has the matching switch, use_xyz, in clipper.hpp itself,
+# where consumers pick it up by reading the header.
+#
+# The cost is eight bytes on every point, paid by CArea too, which has no use
+# for Z. Upstream FreeCAD avoids that by building a second Clipper2 with
+# USINGZ under the same namespace and linking only that into its adaptive
+# code; here CArea is on Clipper2 as well, so both copies would end up in one
+# process with one set of symbols between them.
+target_compile_definitions(area PUBLIC USINGZ)
 
 set_target_properties(area PROPERTIES
     OUTPUT_NAME area
     VERSION ${PROJECT_VERSION}
     # Bumped to 1 when CArea moved to Clipper2: the Clipper types in Area.h's
-    # signatures changed, so this is not the same ABI.
-    SOVERSION 1
+    # signatures changed, so this is not the same ABI. Bumped to 2 when
+    # use_xyz and USINGZ went on, which changes those same types again.
+    SOVERSION 2
     # Nothing in these headers is annotated for export, so a Windows DLL would
     # otherwise be empty.
     WINDOWS_EXPORT_ALL_SYMBOLS ON
