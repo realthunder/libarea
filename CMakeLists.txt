@@ -25,7 +25,7 @@
 #                    those as well as CArea.
 
 cmake_minimum_required(VERSION 3.16)
-project(libarea VERSION 0.3.0 LANGUAGES CXX)
+project(libarea VERSION 0.3.1 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
