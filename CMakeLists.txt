@@ -30,9 +30,6 @@ project(libarea VERSION 0.3.0 LANGUAGES CXX)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
 option(BUILD_SHARED_LIBS "Build a shared library instead of a static one" ON)
 
 add_library(area
@@ -55,6 +52,17 @@ add_library(area
     clipper2/clipper.triangulation.cpp
 )
 add_library(libarea::area ALIAS area)
+
+# C++17 is a requirement of the installed headers, not just of building this
+# library, so it is a PUBLIC compile feature rather than CMAKE_CXX_STANDARD:
+# Clipper2's Group carries a std::optional member, and PolyPath64::AddChild
+# reads the reference that vector::emplace_back only returns from C++17 on.
+# Set as a variable it would govern the targets built here and stop at the
+# install, leaving libarea::area advertising no requirement at all -- which
+# every consumer whose compiler defaults to C++17 would get away with, and
+# MSVC, defaulting to C++14, would not. As a feature it travels with the
+# exported target.
+target_compile_features(area PUBLIC cxx_std_17)
 
 # Clipper2 is built with USINGZ, because FreeCAD's Adaptive.cpp carries an
 # index on the Z member through the clipping and reads it back off the points
